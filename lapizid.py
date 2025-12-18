@@ -66,7 +66,7 @@ class DizipalScraper:
                         return domain.rstrip('/')
         except:
             pass
-        return "https://dizipal1223.com"
+        return "https://dizipal1222.com"
 
     def crawl_film_category_correct(self, tur_name, tur_slug):
         """DOĞRU ŞEKİLDE: Film kategorisini tüm yıllar için çek"""
@@ -78,10 +78,8 @@ class DizipalScraper:
         for year in self.years:
             print(f"   📅 Yıl: {year}")
             
-            # DOĞRU URL YAPISI: /tur/aksiyon?genre=%2Ftur%2Faksiyon%3F&yil=2000&kelime=
+            # DOĞRU URL YAPISI
             encoded_genre = quote(f'/tur/{tur_slug}?', safe='')
-            
-            # Temel URL'yi oluştur
             base_url = f"{self.base_url}/tur/{tur_slug}?genre={encoded_genre}&yil={year}&kelime="
             
             page = 1
@@ -106,27 +104,37 @@ class DizipalScraper:
                     
                     soup = BeautifulSoup(r.content, 'html.parser')
                     
-                    # 1. Sayfada film var mı kontrol et
-                    # Boş sayfa kontrolü
-                    movie_items = soup.select('article.type2 ul li')
+                    # **DÜZELTME: Doğru CSS selector'leri**
+                    # Film konteynerini bul
+                    movie_container = soup.find('article', class_='type2')
                     
-                    if not movie_items:
+                    if not movie_container:
+                        print(f"      ⚠️  Film konteyneri bulunamadı")
+                        break
+                    
+                    # Film item'larını bul - DÜZELTİLMİŞ SELECTOR
+                    film_items = movie_container.find_all('li')
+                    
+                    if not film_items:
                         if page == 1:
                             print(f"      ⚠️  {year} yılı için film bulunamadı")
                         break
                     
-                    # 2. Film linklerini al
+                    print(f"      🔍 {len(film_items)} film item bulundu")
+                    
+                    # Film linklerini al
                     film_links = []
-                    items = soup.select('article.type2 ul li a')
+                    for item in film_items:
+                        # Önce <a> tag'ini bul
+                        a_tag = item.find('a')
+                        if a_tag:
+                            href = a_tag.get('href', '')
+                            if href and '/film/' in href:
+                                full_url = urljoin(self.base_url, href)
+                                if full_url not in film_links:
+                                    film_links.append(full_url)
                     
-                    for item in items:
-                        href = item.get('href', '')
-                        if href and '/film/' in href:
-                            full_url = urljoin(self.base_url, href)
-                            if full_url not in film_links:
-                                film_links.append(full_url)
-                    
-                    print(f"      ✅ {len(film_links)} film bulundu")
+                    print(f"      ✅ {len(film_links)} film linki çıkarıldı")
                     
                     if not film_links:
                         break
@@ -155,6 +163,21 @@ class DizipalScraper:
                             else:
                                 film_title = "Bilinmeyen Film"
                             
+                            # Yıl bilgisini çıkar (sayfa içinden)
+                            year_from_page = year  # Başlangıçta URL'den gelen yılı kullan
+                            
+                            # Sayfada yıl bilgisi ara
+                            year_pattern = re.search(r'(\d{4})', film_title)
+                            if year_pattern:
+                                year_from_page = int(year_pattern.group(1))
+                            
+                            # Alternatif: sayfada yıl bilgisi ara
+                            year_span = soup2.find('span', string=re.compile(r'\d{4}'))
+                            if year_span:
+                                year_match = re.search(r'(\d{4})', year_span.text)
+                                if year_match:
+                                    year_from_page = int(year_match.group(1))
+                            
                             # Logoyu al
                             logo = ""
                             meta_image = soup2.find('meta', property='og:image')
@@ -173,15 +196,16 @@ class DizipalScraper:
                             # tvg-id oluştur
                             clean_title = re.sub(r'[^\w\s-]', '', film_title.lower())
                             clean_title = clean_title.replace(' ', '_').replace('__', '_')
-                            tvg_id = f"{clean_title}_{year}"
+                            tvg_id = f"{clean_title}_{year_from_page}"
                             
                             all_films.append({
                                 'url': film_url,
-                                'title': f"{film_title} ({year})",
+                                'title': f"{film_title} ({year_from_page})",
                                 'tvg_id': tvg_id,
                                 'logo': logo,
                                 'group_title': f"Film - {tur_name.upper()}",
-                                'type': 'film'
+                                'type': 'film',
+                                'year': year_from_page
                             })
                             
                             year_films_count += 1
@@ -234,23 +258,87 @@ class DizipalScraper:
         
         return all_films
 
-    def test_single_category(self):
-        """Tek bir kategoriyi test etmek için"""
+    def debug_category_page(self, tur_slug, year=2024):
+        """Sayfa yapısını debug etmek için"""
+        print(f"\n🔍 DEBUG: {tur_slug} kategorisi - {year} yılı")
+        
+        encoded_genre = quote(f'/tur/{tur_slug}?', safe='')
+        url = f"{self.base_url}/tur/{tur_slug}?genre={encoded_genre}&yil={year}&kelime="
+        
+        print(f"URL: {url}")
+        
+        try:
+            r = self.scraper.get(url, timeout=30)
+            print(f"Status Code: {r.status_code}")
+            
+            soup = BeautifulSoup(r.content, 'html.parser')
+            
+            # Tüm article elementlerini kontrol et
+            print("\nArticle elements found:")
+            articles = soup.find_all('article')
+            for i, article in enumerate(articles):
+                print(f"  {i}. Class: {article.get('class', 'no-class')}")
+            
+            # Type2 article var mı?
+            type2_article = soup.find('article', class_='type2')
+            if type2_article:
+                print("✅ type2 article found")
+                
+                # İçindeki yapıyı incele
+                print("\nArticle içeriği:")
+                print(f"  - li elements: {len(type2_article.find_all('li'))}")
+                
+                # İlk 3 li elementini göster
+                for i, li in enumerate(type2_article.find_all('li')[:3]):
+                    print(f"  Li {i}: {li}")
+                    a_tag = li.find('a')
+                    if a_tag:
+                        print(f"    A tag href: {a_tag.get('href', 'no-href')}")
+            else:
+                print("❌ type2 article NOT found")
+                
+                # Alternatif arama
+                print("\n🔍 Alternatif arama:")
+                # film-container class'ına bak
+                film_container = soup.find('div', class_='film-container')
+                if film_container:
+                    print("✅ film-container found")
+                
+                # film-list class'ına bak
+                film_list = soup.find('div', class_='film-list')
+                if film_list:
+                    print("✅ film-list found")
+                
+                # Tüm div'lerde film linklerini ara
+                all_links = soup.find_all('a', href=True)
+                film_links = [a['href'] for a in all_links if '/film/' in a['href']]
+                print(f"  Film links found in page: {len(film_links)}")
+                
+                # İlk 3 film linkini göster
+                for link in film_links[:3]:
+                    print(f"    - {link}")
+            
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def test_single_category_debug(self):
+        """Tek bir kategoriyi debug etmek için"""
         print("=" * 60)
-        print("🧪 TEK KATEGORİ TEST MODU")
+        print("🔧 DEBUG MODU - Sayfa Yapısı İnceleme")
         print("=" * 60)
         
-        # Sadece "aksiyon" kategorisini test et
-        tur_name = "aksiyon"
-        tur_slug = "aksiyon"
+        # Önce sayfa yapısını debug et
+        self.debug_category_page('aksiyon', 2024)
         
-        print(f"Test edilen kategori: {tur_name}")
-        print(f"URL örneği: {self.base_url}/tur/{tur_slug}?genre=%2Ftur%2F{tur_slug}%3F&yil=2024&kelime=")
+        # Sonra filmleri çek
+        print("\n" + "=" * 60)
+        print("🎬 FİLM ÇEKME TESTİ")
+        print("=" * 60)
         
-        films = self.crawl_film_category_correct(tur_name, tur_slug)
+        films = self.crawl_film_category_correct('aksiyon', 'aksiyon')
         
         # İlk 5 filmi göster
-        print(f"\n📋 İlk 5 film:")
+        print(f"\n📋 Bulunan filmler ({len(films)}):")
         for i, film in enumerate(films[:5], 1):
             print(f"  {i}. {film['title']}")
             print(f"     URL: {film['url']}")
@@ -326,16 +414,22 @@ class DizipalScraper:
             time.sleep(2)
         
         print(f"\n📊 TEST SONUÇLARI: {len(all_films)} film bulundu")
+        
+        # Bulunan filmleri göster
+        if all_films:
+            print("\n📋 İlk 10 film:")
+            for i, film in enumerate(all_films[:10], 1):
+                print(f"  {i}. {film['title']}")
 
 # Kullanım
 if __name__ == "__main__":
     scraper = DizipalScraper()
     
-    # Seçenek 1: Tam sürüm (TÜM kategoriler)
+    # Seçenek 1: Debug modu (sayfa yapısını incele)
+    scraper.test_single_category_debug()
+    
+    # Seçenek 2: Tam sürüm (TÜM kategoriler)
     # scraper.run_films_only()
     
-    # Seçenek 2: Test modu (tek kategori)
-    # scraper.test_single_category()
-    
     # Seçenek 3: Tam test (3 kategori)
-    scraper.run_full_test()
+    # scraper.run_full_test()
