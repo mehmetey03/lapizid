@@ -21,20 +21,18 @@ jobs:
           python-version: '3.10'
 
       - name: Kütüphaneleri Yükle
-        run: |
-          pip install cloudscraper requests beautifulsoup4
-          pip list
+        run: pip install cloudscraper requests beautifulsoup4
 
       - name: M3U Dosyasını Oluştur
         run: python lapizid.py
-        timeout-minutes: 30  # Zaman aşımı süresi
+        timeout-minutes: 90   # 🔴 MUTLAKA ARTIR
 
       - name: M3U Dosyasını Kontrol Et
         run: |
           echo "📊 Oluşan M3U dosyası:"
-          if [ -f "lapizid.m3u" ]; then
-            wc -l lapizid.m3u
-            head -5 lapizid.m3u
+          if [ -f "dizipal_filmler.m3u" ]; then
+            wc -l dizipal_filmler.m3u
+            head -5 dizipal_filmler.m3u
           else
             echo "❌ M3U dosyası oluşturulamadı!"
             exit 1
@@ -44,6 +42,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add lapizid.m3u
-          git diff --quiet && git diff --staged --quiet || git commit -m "✅ lapizid.m3u güncellendi - $(date '+%Y-%m-%d %H:%M')"
+          git add dizipal_filmler.m3u
+          git commit -m "✅ dizipal_filmler.m3u güncellendi - $(date '+%Y-%m-%d %H:%M')" || echo "Değişiklik yok"
           git push
