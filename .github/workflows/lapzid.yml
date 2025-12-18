@@ -1,0 +1,35 @@
+name: Lapizid M3U Oluştur
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Repoyu İndir
+        uses: actions/checkout@v4
+
+      - name: Python Kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Kütüphaneleri Yükle
+        run: pip install cloudscraper requests beautifulsoup4
+
+      - name: M3U Dosyasını Oluştur
+        run: python lapizid.py
+
+      - name: Değişiklikleri Kaydet
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add dizipal.m3u
+          git commit -m "✅ lapizid.m3u güncellendi" || echo "Değişiklik yok"
+          git push
