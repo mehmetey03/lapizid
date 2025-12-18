@@ -82,7 +82,7 @@ class DizipalScraper:
             encoded_genre = quote(f'/tur/{tur_slug}?', safe='')
             
             # Temel URL'yi oluştur
-            base_url = f"{self.base_url}/tur/{tur_slug}?genre={encoded_genre}&yil={year}&kelime="
+            base_url = f"{self.base_url}/tur/{tur_slug}?
             
             page = 1
             year_films_count = 0
@@ -245,7 +245,7 @@ class DizipalScraper:
         tur_slug = "aksiyon"
         
         print(f"Test edilen kategori: {tur_name}")
-        print(f"URL örneği: {self.base_url}/tur/{tur_slug}?genre=%2Ftur%2F{tur_slug}%3F&yil=2024&kelime=")
+        print(f"URL örneği: {self.base_url}/tur/{tur_slug}?")
         
         films = self.crawl_film_category_correct(tur_name, tur_slug)
         
@@ -288,7 +288,7 @@ class DizipalScraper:
         m3u_content = '\n'.join(m3u_lines)
         
         # Dosyaya yaz
-        with open('dizipal_filmler.m3u', 'w', encoding='utf-8') as f:
+        with open('lapizid_filmler.m3u', 'w', encoding='utf-8') as f:
             f.write(m3u_content)
         
         print("\n" + "=" * 60)
