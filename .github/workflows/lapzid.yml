@@ -24,7 +24,7 @@ jobs:
         run: pip install cloudscraper requests beautifulsoup4
 
       - name: M3U Dosyasını Oluştur
-        run: python dizipal_scraper.py
+        run: python lapizid.py
 
       - name: Değişiklikleri Kaydet
         run: |
