@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DÜZGÜN DİZİPAL SCRAPER - Film Kategorileri Düzeltildi
+DÜZGÜN 
 """
 
 import cloudscraper
@@ -57,7 +57,7 @@ class DizipalScraper:
     def get_current_domain(self):
         """GitHub'dan güncel domain'i al"""
         try:
-            url = "https://raw.githubusercontent.com/koprulu555/domain-kontrol2/refs/heads/main/dizipaldomain.txt"
+            url = "https://raw.githubusercontent.com/mehmetey03/doma/refs/heads/main/lapiziddomain.txt"
             r = requests.get(url, timeout=10)
             for line in r.text.split('\n'):
                 if line.startswith('guncel_domain='):
