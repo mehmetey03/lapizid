@@ -30,6 +30,6 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
-          git add dizipal.m3u
+          git add lapizid.m3u
           git commit -m "✅ lapizid.m3u güncellendi" || echo "Değişiklik yok"
           git push
