@@ -1,39 +1,25 @@
-#!/usr/bin/env python3
-"""
-DİZİPAL M3U SCRAPER - Güncellenmiş Versiyon
-"""
-
 import cloudscraper
 import requests
 import re
 import time
-import os
-import sys
-from datetime import datetime
-from urllib.parse import urljoin, quote
+from urllib.parse import urljoin, urlparse, quote
 from bs4 import BeautifulSoup
 
 class DizipalScraper:
-    def __init__(self):
-        print("🚀 Dizipal Scraper başlatılıyor...")
-        
-        # GitHub Actions kontrolü
-        self.is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
-        
-        # Domain'i al
+    def __init__(self, use_proxy=False):
+        # Proxy kullanımını aktif etmek için: DizipalScraper(use_proxy=True)
+        self.use_proxy = use_proxy
+        self.proxy_base = "https://api.codetabs.com/v1/proxy?quest="
         self.base_url = self.get_current_domain()
         print(f"🔗 Domain: {self.base_url}")
-        
-        # Scraper'ı ayarla
+        print(f"🔄 Proxy Kullanımı: {'EVET' if self.use_proxy else 'HAYIR'}")
+
         self.scraper = cloudscraper.create_scraper()
         self.scraper.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Referer': self.base_url,
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+            'Referer': self.base_url
         })
         
         # Kategoriler
