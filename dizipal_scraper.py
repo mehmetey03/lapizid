@@ -94,7 +94,7 @@ class DizipalScraper:
                 else:
                     url = f"{base_url}&sayfa={page}"
                 
-                print(f"      📄 Sayfa {page}: {url[:80]}...")
+                print(f"      📄 Sayfa {page}: {url[:80]}")
                 
                 try:
                     r = self.scraper.get(url, timeout=30)
