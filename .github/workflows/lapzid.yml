@@ -2,56 +2,61 @@ name: Dizipal M3U Scraper
 
 on:
   schedule:
-    # Her gün saat 03:00'te çalıştır (UTC)
     - cron: '0 3 * * *'
-  # Manuel tetikleme için
   workflow_dispatch:
-  # Main branch'e push yapıldığında
   push:
     branches: [ main ]
-    paths:
-      - 'dizipal_scraper.py'
+
+permissions:
+  contents: write
 
 jobs:
-  scrape-and-update:
+  scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     
     steps:
     - name: 🛎️ Repoyu Checkout et
       uses: actions/checkout@v4
       with:
-        # Değişiklikleri commit edebilmek için token
-        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
     
     - name: 🐍 Python kurulumu
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-        cache: 'pip'
+    
+    - name: 🌐 Chrome kurulumu (Selenium için)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y chromium-browser chromium-chromedriver
     
     - name: 📦 Gerekli kütüphaneleri yükle
       run: |
-        pip install cloudscraper beautifulsoup4 requests lxml
+        pip install --upgrade pip
+        pip install -r requirements.txt
     
     - name: 🚀 Dizipal scraper'ı çalıştır
-      run: |
-        python dizipal_scraper.py
-      continue-on-error: true
+      run: python dizipal_scraper.py
     
-    - name: 📁 Oluşan dosyaları kontrol et
+    - name: 📊 Sonuçları kontrol et
       run: |
-        echo "📂 Mevcut dosyalar:"
-        ls -la
-        echo ""
-        echo "📊 M3U dosyası boyutu:"
+        echo "📂 Dosya listesi:"
+        ls -la *.m3u
+        
         if [ -f "dizipal_filmler.m3u" ]; then
-          wc -l dizipal_filmler.m3u
-          # İlk 5 satırı göster
+          echo "✅ dizipal_filmler.m3u bulundu"
+          echo "📈 Satır sayısı: $(wc -l < dizipal_filmler.m3u)"
+          echo "📦 Dosya boyutu: $(wc -c < dizipal_filmler.m3u) bytes"
+          echo ""
+          echo "📋 İlk 10 satır:"
           head -10 dizipal_filmler.m3u
+          
+          # Eski dizipal.m3u'yu sil
+          rm -f dizipal.m3u
         else
           echo "❌ dizipal_filmler.m3u bulunamadı!"
-          echo "🗑️ Test dosyalarını kontrol et:"
-          ls -la *.m3u
+          exit 1
         fi
     
     - name: ✏️ Git kullanıcısını ayarla
@@ -59,40 +64,29 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
     
-    - name: 📤 Değişiklikleri kontrol et ve push yap
+    - name: 📤 Değişiklikleri push et
       run: |
-        echo "🔄 Değişiklikleri kontrol ediyorum..."
-        
-        # M3U dosyasının varlığını kontrol et
-        if [ ! -f "dizipal_filmler.m3u" ]; then
-          echo "⚠️ dizipal_filmler.m3u bulunamadı, test modu çalıştırılıyor..."
-          # Test modunda çalıştır
-          python dizipal_scraper.py
-        fi
+        echo "🔄 Değişiklikler kontrol ediliyor..."
         
         # Değişiklik olup olmadığını kontrol et
-        git status
-        
-        if git diff --quiet && git diff --staged --quiet; then
+        if [ -z "$(git status --porcelain)" ]; then
           echo "✅ Değişiklik yok"
         else
-          echo "📝 Yeni değişiklikler var, commit yapılıyor..."
+          echo "📝 Yeni değişiklikler var"
           
-          # Tüm değişiklikleri ekle
+          git status
           git add .
           
-          # Commit mesajı oluştur
           COMMIT_DATE=$(date +"%Y-%m-%d %H:%M:%S")
-          COMMIT_MSG="🤖 Otomatik güncelleme: $COMMIT_DATE"
+          if [ -f "dizipal_filmler.m3u" ]; then
+            LINE_COUNT=$(wc -l < dizipal_filmler.m3u)
+            COMMIT_MSG="🤖 M3U güncellendi ($LINE_COUNT satır) - $COMMIT_DATE"
+          else
+            COMMIT_MSG="🤖 Otomatik güncelleme - $COMMIT_DATE"
+          fi
           
-          # Commit yap
           git commit -m "$COMMIT_MSG"
-          
-          # Push yap
           git push
           
           echo "✅ Değişiklikler push edildi"
         fi
-      env:
-        # GitHub token'ı kullan
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
