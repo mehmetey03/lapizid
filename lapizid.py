@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-DÜZGÜN DİZİPAL SCRAPER - Film Kategorileri Düzeltildi
+DÜZGÜN DİZİPAL SCRAPER - GitHub Actions Uyumlu
 """
 
 import cloudscraper
 import requests
 import re
 import time
+import sys
+import os
+from datetime import datetime
 from urllib.parse import urljoin, urlparse, quote
 from bs4 import BeautifulSoup
 
@@ -22,37 +25,46 @@ class DizipalScraper:
             'Referer': self.base_url
         })
         
-        # Tüm yıllar (2025'ten 1960'a kadar)
+        # Tüm yıllar
         self.years = list(range(2025, 1959, -1))
         
-        # TÜM FİLM KATEGORİLERİ (Sizin verdiğiniz listeye göre)
-        self.film_turleri = {
-            'aile': 'aile',
-            'aksiyon': 'aksiyon', 
-            'animasyon': 'animasyon',
-            'anime': 'anime',
-            'belgesel': 'belgesel',
-            'bilimkurgu': 'bilimkurgu',
-            'biyografi': 'biyografi',
-            'dram': 'dram',
-            'editorun-sectikleri': 'editorun-sectikleri',
-            'erotik': 'erotik',
-            'fantastik': 'fantastik',
-            'gerilim': 'gerilim',
-            'gizem': 'gizem',
-            'komedi': 'komedi',
-            'korku': 'korku',
-            'macera': 'macera',
-            'mubi': 'mubi',
-            'muzik': 'muzik',
-            'romantik': 'romantik',
-            'savas': 'savas',
-            'spor': 'spor',
-            'suc': 'suc',
-            'tarih': 'tarih',
-            'western': 'western',
-            'yerli': 'yerli'
-        }
+        # GitHub Actions için sınırlı kategori (test için)
+        if os.getenv('GITHUB_ACTIONS') == 'true':
+            print("⚡ GitHub Actions modu: Sınırlı kategori")
+            self.film_turleri = {
+                'aksiyon': 'aksiyon',
+                'komedi': 'komedi',
+                'dram': 'dram'
+            }
+        else:
+            # Tam kategori listesi
+            self.film_turleri = {
+                'aile': 'aile',
+                'aksiyon': 'aksiyon', 
+                'animasyon': 'animasyon',
+                'anime': 'anime',
+                'belgesel': 'belgesel',
+                'bilimkurgu': 'bilimkurgu',
+                'biyografi': 'biyografi',
+                'dram': 'dram',
+                'editorun-sectikleri': 'editorun-sectikleri',
+                'erotik': 'erotik',
+                'fantastik': 'fantastik',
+                'gerilim': 'gerilim',
+                'gizem': 'gizem',
+                'komedi': 'komedi',
+                'korku': 'korku',
+                'macera': 'macera',
+                'mubi': 'mubi',
+                'muzik': 'muzik',
+                'romantik': 'romantik',
+                'savas': 'savas',
+                'spor': 'spor',
+                'suc': 'suc',
+                'tarih': 'tarih',
+                'western': 'western',
+                'yerli': 'yerli'
+            }
 
     def get_current_domain(self):
         """GitHub'dan güncel domain'i al"""
@@ -64,58 +76,49 @@ class DizipalScraper:
                     domain = line.split('=', 1)[1].strip()
                     if domain:
                         return domain.rstrip('/')
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ Domain alınamadı: {e}")
         return "https://dizipal1222.com"
 
-    def crawl_film_category_correct(self, tur_name, tur_slug):
-        """DOĞRU ŞEKİLDE: Film kategorisini tüm yıllar için çek"""
+    def crawl_film_category(self, tur_name, tur_slug):
+        """Film kategorisini tüm yıllar için çek"""
         print(f"\n🎬 FİLM KATEGORİSİ: {tur_name.upper()} (Slug: {tur_slug})")
         
         all_films = []
         
-        # Her yıl için ayrı ayrı tarama
-        for year in self.years:
+        # GitHub Actions için sadece son 2 yıl
+        if os.getenv('GITHUB_ACTIONS') == 'true':
+            years_to_check = self.years[:2]  # Sadece 2025, 2024
+        else:
+            years_to_check = self.years
+        
+        for year in years_to_check:
             print(f"   📅 Yıl: {year}")
             
-            # DOĞRU URL YAPISI: /tur/aksiyon?genre=%2Ftur%2Faksiyon%3F&yil=2000&kelime=
             encoded_genre = quote(f'/tur/{tur_slug}?', safe='')
-            
-            # Temel URL'yi oluştur
             base_url = f"{self.base_url}/tur/{tur_slug}?genre={encoded_genre}&yil={year}&kelime="
             
             page = 1
             year_films_count = 0
             
             while True:
-                # Sayfa numarasını ekle
                 if page == 1:
                     url = base_url
                 else:
                     url = f"{base_url}&sayfa={page}"
                 
-                print(f"      📄 Sayfa {page}: {url[:80]}...")
+                print(f"      📄 Sayfa {page}")
                 
                 try:
                     r = self.scraper.get(url, timeout=30)
                     
-                    # HTTP hata kodlarını kontrol et
                     if r.status_code != 200:
-                        print(f"      ❌ HTTP Hatası {r.status_code}")
+                        print(f"      ❌ HTTP {r.status_code}")
                         break
                     
                     soup = BeautifulSoup(r.content, 'html.parser')
                     
-                    # 1. Sayfada film var mı kontrol et
-                    # Boş sayfa kontrolü
-                    movie_items = soup.select('article.type2 ul li')
-                    
-                    if not movie_items:
-                        if page == 1:
-                            print(f"      ⚠️  {year} yılı için film bulunamadı")
-                        break
-                    
-                    # 2. Film linklerini al
+                    # Film linklerini al
                     film_links = []
                     items = soup.select('article.type2 ul li a')
                     
@@ -131,8 +134,8 @@ class DizipalScraper:
                     if not film_links:
                         break
                     
-                    # 3. Her film için bilgileri çek
-                    for film_url in film_links:
+                    # Her film için bilgileri çek
+                    for film_url in film_links[:3]:  # GitHub Actions için sınırlı sayı
                         try:
                             r2 = self.scraper.get(film_url, timeout=30)
                             
@@ -141,11 +144,10 @@ class DizipalScraper:
                             
                             soup2 = BeautifulSoup(r2.content, 'html.parser')
                             
-                            # Film başlığını al - DOĞRU ŞEKİLDE
+                            # Film başlığını al
                             title_tag = soup2.find('title')
                             if title_tag:
                                 title_text = title_tag.text
-                                # "Film Adı İzle | dizipal" formatından sadece film adını al
                                 if ' İzle |' in title_text:
                                     film_title = title_text.split(' İzle |')[0].strip()
                                 elif ' | dizipal' in title_text:
@@ -155,20 +157,11 @@ class DizipalScraper:
                             else:
                                 film_title = "Bilinmeyen Film"
                             
-                            # Logoyu al
+                            # Logo
                             logo = ""
                             meta_image = soup2.find('meta', property='og:image')
                             if meta_image:
                                 logo = meta_image.get('content', '')
-                            
-                            # Alternatif logo kaynağı
-                            if not logo:
-                                poster_img = soup2.find('div', class_='cover')
-                                if poster_img and 'style' in poster_img.attrs:
-                                    style = poster_img['style']
-                                    logo_match = re.search(r'url\((https://[^)]+)\)', style)
-                                    if logo_match:
-                                        logo = logo_match.group(1)
                             
                             # tvg-id oluştur
                             clean_title = re.sub(r'[^\w\s-]', '', film_title.lower())
@@ -187,34 +180,74 @@ class DizipalScraper:
                             year_films_count += 1
                             
                         except Exception as e:
-                            print(f"         ❌ Film bilgisi alınamadı {film_url}: {str(e)[:50]}")
+                            print(f"         ❌ Film hatası: {str(e)[:50]}")
                             continue
                     
-                    # 4. Sonraki sayfa var mı kontrol et
+                    # Sonraki sayfa kontrolü
                     next_page = soup.select_one('a[rel="next"]')
                     if not next_page:
                         break
                     
                     page += 1
-                    time.sleep(0.5)  # Sunucu yükünü azalt
+                    time.sleep(0.5)
                     
                 except Exception as e:
-                    print(f"      ❌ {year} - Sayfa {page} hatası: {str(e)[:50]}")
+                    print(f"      ❌ Sayfa hatası: {str(e)[:50]}")
                     break
             
             print(f"      📊 {year} yılı: {year_films_count} film")
             
-            # Her yıl arasında biraz bekle
             if year_films_count > 0:
                 time.sleep(1)
         
         print(f"   📊 Kategori toplam: {len(all_films)} film")
         return all_films
 
-    def crawl_all_film_categories(self):
-        """Tüm film kategorilerini çek"""
+    def generate_m3u(self, films, filename='dizipal_filmler.m3u'):
+        """M3U dosyası oluştur"""
+        print(f"\n📝 M3U dosyası oluşturuluyor: {filename}")
+        
+        # M3U başlığı
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        m3u_lines = [
+            '#EXTM3U',
+            f'# Generated by Dizipal Scraper on {timestamp}',
+            f'# Total films: {len(films)}',
+            '#'
+        ]
+        
+        # Filmleri gruplara ayır
+        grouped_films = {}
+        for film in films:
+            group = film['group_title']
+            if group not in grouped_films:
+                grouped_films[group] = []
+            grouped_films[group].append(film)
+        
+        # Her grup için M3U satırları
+        for group_title, films_in_group in sorted(grouped_films.items()):
+            m3u_lines.append(f'\n# GROUP-TITLE: "{group_title}"')
+            
+            for film in sorted(films_in_group, key=lambda x: x['title']):
+                m3u_lines.append(f'#EXTINF:-1 tvg-id="{film["tvg_id"]}" tvg-name="{film["title"]}" tvg-logo="{film["logo"]}" group-title="{group_title}", {film["title"]}')
+                m3u_lines.append(film['url'])
+        
+        m3u_content = '\n'.join(m3u_lines)
+        
+        # Dosyaya yaz
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(m3u_content)
+        
+        print(f"✅ M3U dosyası oluşturuldu: {filename}")
+        print(f"📊 Toplam film: {len(films)}")
+        print(f"📁 Dosya boyutu: {len(m3u_content.encode('utf-8'))} bytes")
+        
+        return filename
+
+    def run_github_actions_mode(self):
+        """GitHub Actions için optimize edilmiş mod"""
         print("=" * 60)
-        print("🎬 TÜM FİLM KATEGORİLERİ ÇEKİLİYOR")
+        print("⚡ GITHUB ACTIONS MODU")
         print("=" * 60)
         
         all_films = []
@@ -223,119 +256,98 @@ class DizipalScraper:
         
         for tur_name, tur_slug in self.film_turleri.items():
             print(f"\n[{current_category}/{total_categories}] ", end="")
-            films = self.crawl_film_category_correct(tur_name, tur_slug)
+            films = self.crawl_film_category(tur_name, tur_slug)
             all_films.extend(films)
-            
-            # Kategori arasında bekle
-            if films:
-                time.sleep(2)
             
             current_category += 1
-        
-        return all_films
-
-    def test_single_category(self):
-        """Tek bir kategoriyi test etmek için"""
-        print("=" * 60)
-        print("🧪 TEK KATEGORİ TEST MODU")
-        print("=" * 60)
-        
-        # Sadece "aksiyon" kategorisini test et
-        tur_name = "aksiyon"
-        tur_slug = "aksiyon"
-        
-        print(f"Test edilen kategori: {tur_name}")
-        print(f"URL örneği: {self.base_url}/tur/{tur_slug}?genre=%2Ftur%2F{tur_slug}%3F&yil=2024&kelime=")
-        
-        films = self.crawl_film_category_correct(tur_name, tur_slug)
-        
-        # İlk 5 filmi göster
-        print(f"\n📋 İlk 5 film:")
-        for i, film in enumerate(films[:5], 1):
-            print(f"  {i}. {film['title']}")
-            print(f"     URL: {film['url']}")
-            print(f"     Logo: {film['logo'][:50]}..." if film['logo'] else "     Logo: Yok")
-        
-        return films
-
-    def run_films_only(self):
-        """Sadece filmleri çekmek için"""
-        print("=" * 60)
-        print("🚀 SADECE FİLMLER ÇEKİLİYOR")
-        print("=" * 60)
-        
-        all_films = self.crawl_all_film_categories()
+            time.sleep(1)  # Sunucu yükünü azalt
         
         # M3U dosyasını oluştur
-        m3u_lines = ['#EXTM3U x-tvg-url="https://github.com/botallen/epg/releases/download/latest/epg.xml"']
+        if all_films:
+            self.generate_m3u(all_films)
+        else:
+            print("❌ Film bulunamadı!")
+            # Boş bir M3U dosyası oluştur
+            with open('dizipal_filmler.m3u', 'w', encoding='utf-8') as f:
+                f.write('#EXTM3U\n# No films found\n')
         
-        # Filmleri gruplara ayır
-        grouped_films = {}
-        for film in all_films:
-            group = film['group_title']
-            if group not in grouped_films:
-                grouped_films[group] = []
-            grouped_films[group].append(film)
-        
-        # Her grup için M3U satırlarını oluştur
-        for group_title, films in sorted(grouped_films.items()):
-            m3u_lines.append(f'\n# GROUP-TITLE: "{group_title}"')
-            
-            for film in sorted(films, key=lambda x: x['title']):
-                m3u_lines.append(f'#EXTINF:-1 tvg-id="{film["tvg_id"]}" tvg-name="{film["title"]}" tvg-logo="{film["logo"]}" group-title="{group_title}", {film["title"]}')
-                m3u_lines.append(film['url'])
-        
-        m3u_content = '\n'.join(m3u_lines)
-        
-        # Dosyaya yaz
-        with open('dizipal_filmler.m3u', 'w', encoding='utf-8') as f:
-            f.write(m3u_content)
-        
-        print("\n" + "=" * 60)
-        print(f"✅ FİLMLER TAMAMLANDI!")
-        print(f"📁 Çıktı: dizipal_filmler.m3u")
-        print(f"📊 Toplam film: {len(all_films)}")
-        print("=" * 60)
-        
-        # Kategori istatistikleri
-        print("\n📊 KATEGORİ İSTATİSTİKLERİ:")
-        for tur_name in self.film_turleri.keys():
-            category_films = [f for f in all_films if f'Film - {tur_name.upper()}' in f['group_title']]
-            if category_films:
-                print(f"   {tur_name.upper()}: {len(category_films)} film")
+        return len(all_films)
 
-    def run_full_test(self):
-        """Tam test modu"""
+    def run_full_mode(self):
+        """Tam mod (yerel kullanım için)"""
         print("=" * 60)
-        print("🧪 TAM TEST MODU - 3 KATEGORİ")
+        print("🚀 TAM MOD - TÜM KATEGORİLER")
         print("=" * 60)
-        
-        # Sadece 3 kategori test et
-        test_categories = {
-            'aksiyon': 'aksiyon',
-            'korku': 'korku', 
-            'komedi': 'komedi'
-        }
         
         all_films = []
+        total_categories = len(self.film_turleri)
+        current_category = 1
         
-        for tur_name, tur_slug in test_categories.items():
-            print(f"\n🎬 TEST: {tur_name.upper()}")
-            films = self.crawl_film_category_correct(tur_name, tur_slug)
+        for tur_name, tur_slug in self.film_turleri.items():
+            print(f"\n[{current_category}/{total_categories}] ", end="")
+            films = self.crawl_film_category(tur_name, tur_slug)
             all_films.extend(films)
+            
+            current_category += 1
             time.sleep(2)
         
-        print(f"\n📊 TEST SONUÇLARI: {len(all_films)} film bulundu")
+        # M3U dosyasını oluştur
+        self.generate_m3u(all_films)
+        
+        return len(all_films)
 
-# Kullanım
-if __name__ == "__main__":
+# Ana fonksiyon
+def main():
     scraper = DizipalScraper()
     
-    # Seçenek 1: Tam sürüm (TÜM kategoriler)
-    # scraper.run_films_only()
+    # Ortam değişkenine göre mod seç
+    if os.getenv('GITHUB_ACTIONS') == 'true':
+        film_count = scraper.run_github_actions_mode()
+    else:
+        # Kullanıcı seçeneği
+        print("\n🔧 Çalışma Modunu Seçin:")
+        print("1. GitHub Actions Modu (Test - Hızlı)")
+        print("2. Tam Mod (Tüm kategoriler)")
+        print("3. Tek Kategori Testi")
+        
+        choice = input("\nSeçiminiz (1-3): ").strip()
+        
+        if choice == '1':
+            film_count = scraper.run_github_actions_mode()
+        elif choice == '2':
+            film_count = scraper.run_full_mode()
+        elif choice == '3':
+            # Test için tek kategori
+            print("\n🧪 TEK KATEGORİ TESTİ")
+            tur_name = "aksiyon"
+            tur_slug = "aksiyon"
+            films = scraper.crawl_film_category(tur_name, tur_slug)
+            scraper.generate_m3u(films, 'dizipal_test.m3u')
+            film_count = len(films)
+        else:
+            print("❌ Geçersiz seçim!")
+            sys.exit(1)
     
-    # Seçenek 2: Test modu (tek kategori)
-    # scraper.test_single_category()
+    print("\n" + "=" * 60)
+    print(f"✅ İŞLEM TAMAMLANDI!")
+    print(f"📊 Toplam film: {film_count}")
+    print("=" * 60)
     
-    # Seçenek 3: Tam test (3 kategori)
-    scraper.run_full_test()
+    # Başarılı çıkış
+    sys.exit(0)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n❌ Kullanıcı tarafından durduruldu!")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Beklenmeyen hata: {e}")
+        # Hata durumunda bile boş bir M3U dosyası oluştur
+        try:
+            with open('dizipal_filmler.m3u', 'w', encoding='utf-8') as f:
+                f.write('#EXTM3U\n# Error occurred during scraping\n')
+        except:
+            pass
+        sys.exit(1)
