@@ -314,17 +314,21 @@ class DizipalScraper:
         
         # Dosyaya yaz
         try:
+            m3u_content = '\n'.join(m3u_lines)
             with open(filename, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(m3u_lines))
+                f.write(m3u_content)
             
             print(f"✅ {filename} oluşturuldu")
-            print(f"📁 Boyut: {len('\\n'.join(m3u_lines))} karakter")
+            print(f"📁 Boyut: {len(m3u_content)} karakter")
             
             # İlk 5 satırı göster
             print(f"\n📋 İlk 5 satır:")
-            lines = '\n'.join(m3u_lines).split('\n')
+            lines = m3u_content.split('\n')
             for i in range(min(5, len(lines))):
-                print(f"  {i+1}. {lines[i][:80]}{'...' if len(lines[i]) > 80 else ''}")
+                display_line = lines[i]
+                if len(display_line) > 80:
+                    display_line = display_line[:80] + '...'
+                print(f"  {i+1}. {display_line}")
             
             return True
             
