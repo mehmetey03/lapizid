@@ -1,35 +1,98 @@
-name: Dizipal M3U Oluştur
+name: Dizipal M3U Scraper
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'
+    # Her gün saat 03:00'te çalıştır (UTC)
+    - cron: '0 3 * * *'
+  # Manuel tetikleme için
+  workflow_dispatch:
+  # Main branch'e push yapıldığında
+  push:
+    branches: [ main ]
+    paths:
+      - 'dizipal_scraper.py'
 
 jobs:
-  build:
+  scrape-and-update:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    
     steps:
-      - name: Repoyu İndir
-        uses: actions/checkout@v4
-
-      - name: Python Kur
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Kütüphaneleri Yükle
-        run: pip install cloudscraper requests beautifulsoup4
-
-      - name: M3U Dosyasını Oluştur
-        run: python lapizid.py
-
-      - name: Değişiklikleri Kaydet
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
-          git add dizipal.m3u
-          git commit -m "🤖 dizipal.m3u güncellendi" || echo "Değişiklik yok"
+    - name: 🛎️ Repoyu Checkout et
+      uses: actions/checkout@v4
+      with:
+        # Değişiklikleri commit edebilmek için token
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 🐍 Python kurulumu
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+    
+    - name: 📦 Gerekli kütüphaneleri yükle
+      run: |
+        pip install cloudscraper beautifulsoup4 requests lxml
+    
+    - name: 🚀 Dizipal scraper'ı çalıştır
+      run: |
+        python dizipal_scraper.py
+      continue-on-error: true
+    
+    - name: 📁 Oluşan dosyaları kontrol et
+      run: |
+        echo "📂 Mevcut dosyalar:"
+        ls -la
+        echo ""
+        echo "📊 M3U dosyası boyutu:"
+        if [ -f "dizipal_filmler.m3u" ]; then
+          wc -l dizipal_filmler.m3u
+          # İlk 5 satırı göster
+          head -10 dizipal_filmler.m3u
+        else
+          echo "❌ dizipal_filmler.m3u bulunamadı!"
+          echo "🗑️ Test dosyalarını kontrol et:"
+          ls -la *.m3u
+        fi
+    
+    - name: ✏️ Git kullanıcısını ayarla
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: 📤 Değişiklikleri kontrol et ve push yap
+      run: |
+        echo "🔄 Değişiklikleri kontrol ediyorum..."
+        
+        # M3U dosyasının varlığını kontrol et
+        if [ ! -f "dizipal_filmler.m3u" ]; then
+          echo "⚠️ dizipal_filmler.m3u bulunamadı, test modu çalıştırılıyor..."
+          # Test modunda çalıştır
+          python dizipal_scraper.py
+        fi
+        
+        # Değişiklik olup olmadığını kontrol et
+        git status
+        
+        if git diff --quiet && git diff --staged --quiet; then
+          echo "✅ Değişiklik yok"
+        else
+          echo "📝 Yeni değişiklikler var, commit yapılıyor..."
+          
+          # Tüm değişiklikleri ekle
+          git add .
+          
+          # Commit mesajı oluştur
+          COMMIT_DATE=$(date +"%Y-%m-%d %H:%M:%S")
+          COMMIT_MSG="🤖 Otomatik güncelleme: $COMMIT_DATE"
+          
+          # Commit yap
+          git commit -m "$COMMIT_MSG"
+          
+          # Push yap
           git push
+          
+          echo "✅ Değişiklikler push edildi"
+        fi
+      env:
+        # GitHub token'ı kullan
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
