@@ -1,92 +1,35 @@
-name: Dizipal M3U Scraper
+name: Dizipal M3U Oluştur
 
 on:
-  schedule:
-    - cron: '0 3 * * *'
   workflow_dispatch:
-  push:
-    branches: [ main ]
-
-permissions:
-  contents: write
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
-  scrape:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    
+    permissions:
+      contents: write
+
     steps:
-    - name: 🛎️ Repoyu Checkout et
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: 🐍 Python kurulumu
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    
-    - name: 🌐 Chrome kurulumu (Selenium için)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y chromium-browser chromium-chromedriver
-    
-    - name: 📦 Gerekli kütüphaneleri yükle
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: 🚀 Dizipal scraper'ı çalıştır
-      run: python dizipal_scraper.py
-    
-    - name: 📊 Sonuçları kontrol et
-      run: |
-        echo "📂 Dosya listesi:"
-        ls -la *.m3u
-        
-        if [ -f "dizipal_filmler.m3u" ]; then
-          echo "✅ dizipal_filmler.m3u bulundu"
-          echo "📈 Satır sayısı: $(wc -l < dizipal_filmler.m3u)"
-          echo "📦 Dosya boyutu: $(wc -c < dizipal_filmler.m3u) bytes"
-          echo ""
-          echo "📋 İlk 10 satır:"
-          head -10 dizipal_filmler.m3u
-          
-          # Eski dizipal.m3u'yu sil
-          rm -f dizipal.m3u
-        else
-          echo "❌ dizipal_filmler.m3u bulunamadı!"
-          exit 1
-        fi
-    
-    - name: ✏️ Git kullanıcısını ayarla
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-    
-    - name: 📤 Değişiklikleri push et
-      run: |
-        echo "🔄 Değişiklikler kontrol ediliyor..."
-        
-        # Değişiklik olup olmadığını kontrol et
-        if [ -z "$(git status --porcelain)" ]; then
-          echo "✅ Değişiklik yok"
-        else
-          echo "📝 Yeni değişiklikler var"
-          
-          git status
-          git add .
-          
-          COMMIT_DATE=$(date +"%Y-%m-%d %H:%M:%S")
-          if [ -f "dizipal_filmler.m3u" ]; then
-            LINE_COUNT=$(wc -l < dizipal_filmler.m3u)
-            COMMIT_MSG="🤖 M3U güncellendi ($LINE_COUNT satır) - $COMMIT_DATE"
-          else
-            COMMIT_MSG="🤖 Otomatik güncelleme - $COMMIT_DATE"
-          fi
-          
-          git commit -m "$COMMIT_MSG"
+      - name: Repoyu İndir
+        uses: actions/checkout@v4
+
+      - name: Python Kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Kütüphaneleri Yükle
+        run: pip install cloudscraper requests beautifulsoup4
+
+      - name: M3U Dosyasını Oluştur
+        run: python dizipal_scraper.py
+
+      - name: Değişiklikleri Kaydet
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add dizipal.m3u
+          git commit -m "🤖 dizipal.m3u güncellendi" || echo "Değişiklik yok"
           git push
-          
-          echo "✅ Değişiklikler push edildi"
-        fi
